@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Switch Config Reader</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        table { border-collapse: collapse; width: 100%; max-width: 1000px; table-layout: auto; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #f4f4f4; }
+        th:nth-child(1), td:nth-child(1) { min-width: 50px; }
+        th:nth-child(2), td:nth-child(2) { min-width: 180px; }
+        th:nth-child(3), td:nth-child(3) { min-width: 150px; }
+        th:nth-child(4), td:nth-child(4) { min-width: 120px; }
+        th:nth-child(5), td:nth-child(5) { min-width: 150px; }
+        th:nth-child(6), td:nth-child(6) { min-width: 300px; }
+        th:nth-child(7), td:nth-child(7) { min-width: 50px; }
+        .message { margin: 16px 0; padding: 12px; border-radius: 6px; }
+        .success { background: #e6ffed; border: 1px solid #8fd19e; }
+        .error { background: #ffe6e6; border: 1px solid #d18f8f; }
+        pre { background: #f8f8f8; padding: 12px; border: 1px solid #ddd; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h2><a href="/" style="color:#000; text-decoration:none;">连接交换机并保存配置</a></h2>
+    {% if success %}
+        <div class="message success">
+            成功保存配置：{{ host }}<br>
+            文件名：<a href="/configs/{{ filename }}" target="_blank">{{ filename }}</a>
+        </div>
+        <h3>本次配置内容</h3>
+        <pre>{{ output }}</pre>
+    {% elif error %}
+        <div class="message error">
+            连接失败: {{ error }}
+        </div>
+    {% endif %}
+
+    <form action="/connect" method="post">
+        <label for="host">Host:</label>
+        <input type="text" id="host" name="host" required><br><br>
+
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required><br><br>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br><br>
+
+        <label for="ticket">Ticket No.:</label>
+        <input type="text" id="ticket" name="ticket" placeholder="可选"><br><br>
+
+        <label for="comment">Comment:</label>
+        <select id="comment" name="comment" onchange="toggleCommentText()">
+            <option value="none">none</option>
+            <option value="before change">before change</option>
+            <option value="after change">after change</option>
+            <option value="other">other</option>
+        </select><br><br>
+
+        <div id="comment_text_wrap" style="display:none;">
+            <label for="comment_text">其他备注：</label><br>
+            <textarea id="comment_text" name="comment_text" rows="3" cols="40" placeholder="请输入备注"></textarea><br><br>
+        </div>
+
+        <button type="submit">连接并保存配置</button>
+    </form>
+    <script>
+        function toggleCommentText() {
+            var commentSelect = document.getElementById('comment');
+            var wrap = document.getElementById('comment_text_wrap');
+            wrap.style.display = commentSelect.value === 'other' ? 'block' : 'none';
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleCommentText();
+        });
+    </script>
+
+    <h2>保存的配置记录</h2>
+    {% if records %}
+        <form action="/compare" method="post">
+            <label for="file_a">选择配置 A：</label>
+            <select id="file_a" name="file_a" required>
+                <option value="">-- 请选择 --</option>
+                {% for record in records %}
+                    <option value="{{ record.filename }}" {% if record.filename == compare_a %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
+                {% endfor %}
+            </select>
+            <label for="file_b">选择配置 B：</label>
+            <select id="file_b" name="file_b" required>
+                <option value="">-- 请选择 --</option>
+                {% for record in records %}
+                    <option value="{{ record.filename }}" {% if record.filename == compare_b %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">比较两个配置</button>
+        </form>
+
+        {% if compare_result %}
+            <div class="message" style="background:#f7f7f7; border:1px solid #ccc;">
+                <h3>配置比较结果</h3>
+                <pre>{{ compare_result }}</pre>
+            </div>
+        {% endif %}
+
+        <table>
+            <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>保存时间</th>
+                    <th>目标 Host</th>
+                    <th>Ticket No.</th>
+                    <th>Comment</th>
+                    <th>文件名</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                    <tr>
+                        <td>{{ record.seq }}</td>
+                        <td>{{ record.timestamp }}</td>
+                        <td>{{ record.host }}</td>
+                        <td>{{ record.ticket }}</td>
+                        <td>{{ record.comment }}</td>
+                        <td><a href="/configs/{{ record.filename }}" target="_blank">{{ record.filename }}</a></td>
+                        <td>
+                            <form action="/delete/{{ record.filename }}" method="post" style="display:inline;" onsubmit="return confirm('确定删除吗?');">
+                                <button type="submit" style="background:#dc3545;color:#fff;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>尚未保存任何配置。</p>
+    {% endif %}
+</body>
+</html>
