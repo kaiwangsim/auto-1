@@ -3,10 +3,69 @@ import json
 import os
 import re
 from datetime import datetime
-from flask import Flask, request, render_template, send_from_directory, abort
+from flask import Flask, request, render_template, send_from_directory, abort, jsonify
 from device_connector import connect_to_device
 
 app = Flask(__name__)
+
+
+def generate_side_by_side_diff(lines_a, lines_b):
+    """Generate a side-by-side diff with structured format."""
+    matcher = difflib.SequenceMatcher(None, lines_a, lines_b)
+    diff_lines = []
+    
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            for i in range(i2 - i1):
+                line_a = lines_a[i1 + i].rstrip('\n')
+                line_b = lines_b[j1 + i].rstrip('\n')
+                diff_lines.append({
+                    'type': 'equal',
+                    'line_a': line_a,
+                    'line_b': line_b
+                })
+        elif tag == 'delete':
+            for i in range(i1, i2):
+                line_a = lines_a[i].rstrip('\n')
+                diff_lines.append({
+                    'type': 'delete',
+                    'line_a': line_a,
+                    'line_b': ''
+                })
+        elif tag == 'insert':
+            for j in range(j1, j2):
+                line_b = lines_b[j].rstrip('\n')
+                diff_lines.append({
+                    'type': 'insert',
+                    'line_a': '',
+                    'line_b': line_b
+                })
+        elif tag == 'replace':
+            # Handle replacements by pairing lines
+            max_len = max(i2 - i1, j2 - j1)
+            for k in range(max_len):
+                line_a = lines_a[i1 + k].rstrip('\n') if i1 + k < i2 else ''
+                line_b = lines_b[j1 + k].rstrip('\n') if j1 + k < j2 else ''
+                if line_a and line_b:
+                    diff_lines.append({
+                        'type': 'replace',
+                        'line_a': line_a,
+                        'line_b': line_b
+                    })
+                elif line_a:
+                    diff_lines.append({
+                        'type': 'delete',
+                        'line_a': line_a,
+                        'line_b': ''
+                    })
+                else:
+                    diff_lines.append({
+                        'type': 'insert',
+                        'line_a': '',
+                        'line_b': line_b
+                    })
+    
+    return diff_lines
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_DIR = os.path.join(BASE_DIR, "configs")
 os.makedirs(CONFIG_DIR, exist_ok=True)
@@ -104,6 +163,7 @@ def index():
         "index.html",
         records=records,
         compare_result=None,
+        changes_count=0,
         compare_a=None,
         compare_b=None,
     )
@@ -111,59 +171,94 @@ def index():
 
 @app.route("/connect", methods=["POST"])
 def connect():
-    host = request.form["host"]
+    host_input = request.form["host"].strip()
     username = request.form["username"]
     password = request.form["password"]
-
-    try:
-        output = connect_to_device(host, username, password)
-
-        comment_choice = request.form.get("comment", "none")
-        other_text = request.form.get("comment_text", "").strip()
-        ticket = request.form.get("ticket", "").strip()
-        if comment_choice == "before change":
-            comment = "before change"
-        elif comment_choice == "after change":
-            comment = "after change"
-        elif comment_choice == "other":
-            comment = other_text
-        else:
-            comment = ""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_host = re.sub(r"[^a-zA-Z0-9_-]", "_", host)
-        seq = get_next_sequence_number()
-        filename = f"{seq}_{timestamp}__{safe_host}.txt"
-        file_path = os.path.join(CONFIG_DIR, filename)
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(output)
-
-        metadata = load_metadata()
-        metadata[filename] = {
-            "comment": comment,
-            "ticket": ticket,
-        }
-        save_metadata(metadata)
-
+    
+    # 支持多个host，用逗号或换行分隔
+    hosts = [h.strip() for h in re.split(r'[,\n]', host_input) if h.strip()]
+    
+    if not hosts:
         records = list_saved_configs()
+        return render_template(
+            "index.html",
+            records=records,
+            error="请输入至少一个Host地址。",
+            compare_result=None,
+            changes_count=0,
+            compare_a=None,
+            compare_b=None,
+        )
+
+    comment_choice = request.form.get("comment", "none")
+    other_text = request.form.get("comment_text", "").strip()
+    ticket = request.form.get("ticket", "").strip()
+    if comment_choice == "before change":
+        comment = "before change"
+    elif comment_choice == "after change":
+        comment = "after change"
+    elif comment_choice == "other":
+        comment = other_text
+    else:
+        comment = ""
+    
+    success_list = []
+    error_list = []
+    
+    for host in hosts:
+        try:
+            output = connect_to_device(host, username, password)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_host = re.sub(r"[^a-zA-Z0-9_-]", "_", host)
+            seq = get_next_sequence_number()
+            filename = f"{seq}_{timestamp}__{safe_host}.txt"
+            file_path = os.path.join(CONFIG_DIR, filename)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(output)
+
+            metadata = load_metadata()
+            metadata[filename] = {
+                "comment": comment,
+                "ticket": ticket,
+            }
+            save_metadata(metadata)
+            
+            success_list.append({
+                "host": host,
+                "filename": filename,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+        except Exception as e:
+            error_list.append({
+                "host": host,
+                "error": str(e)
+            })
+
+    records = list_saved_configs()
+    
+    if error_list and not success_list:
+        # 全部失败
+        error_msg = "连接失败: " + "; ".join([f"{e['host']}: {e['error']}" for e in error_list])
+        return render_template(
+            "index.html",
+            records=records,
+            error=error_msg,
+            compare_result=None,
+            changes_count=0,
+            compare_a=None,
+            compare_b=None,
+        )
+    else:
+        # 部分成功或全部成功
         return render_template(
             "index.html",
             records=records,
             success=True,
-            filename=filename,
-            host=host,
-            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            output=output,
+            success_list=success_list,
+            error_list=error_list,
             compare_result=None,
-            compare_a=None,
-            compare_b=None,
-        )
-    except Exception as e:
-        records = list_saved_configs()
-        return render_template(
-            "index.html",
-            records=records,
-            error=str(e),
-            compare_result=None,
+            changes_count=0,
             compare_a=None,
             compare_b=None,
         )
@@ -200,21 +295,17 @@ def compare():
     with open(path_b, "r", encoding="utf-8", errors="ignore") as fb:
         lines_b = fb.readlines()
 
-    diff = difflib.unified_diff(
-        lines_a,
-        lines_b,
-        fromfile=file_a,
-        tofile=file_b,
-        lineterm="",
-    )
-    diff_text = "\n".join(diff)
-    if not diff_text:
-        diff_text = "两个配置文件完全相同。"
+    # Generate structured diff
+    diff_lines = generate_side_by_side_diff(lines_a, lines_b)
+    
+    # Count changes
+    changes_count = sum(1 for line in diff_lines if line['type'] != 'equal')
 
     return render_template(
         "index.html",
         records=records,
-        compare_result=diff_text,
+        compare_result=json.dumps(diff_lines, ensure_ascii=False),
+        changes_count=changes_count,
         compare_a=file_a,
         compare_b=file_b,
     )
@@ -240,6 +331,7 @@ def delete_config(filename):
         "index.html",
         records=records,
         compare_result=None,
+        changes_count=0,
         compare_a=None,
         compare_b=None,
     )

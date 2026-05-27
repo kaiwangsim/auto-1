@@ -1,138 +1,558 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Switch Config Reader</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 24px; }
-        table { border-collapse: collapse; width: 100%; max-width: 1000px; table-layout: auto; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        th { background: #f4f4f4; }
-        th:nth-child(1), td:nth-child(1) { min-width: 50px; }
-        th:nth-child(2), td:nth-child(2) { min-width: 180px; }
-        th:nth-child(3), td:nth-child(3) { min-width: 150px; }
-        th:nth-child(4), td:nth-child(4) { min-width: 120px; }
-        th:nth-child(5), td:nth-child(5) { min-width: 150px; }
-        th:nth-child(6), td:nth-child(6) { min-width: 300px; }
-        th:nth-child(7), td:nth-child(7) { min-width: 50px; }
-        .message { margin: 16px 0; padding: 12px; border-radius: 6px; }
-        .success { background: #e6ffed; border: 1px solid #8fd19e; }
-        .error { background: #ffe6e6; border: 1px solid #d18f8f; }
-        pre { background: #f8f8f8; padding: 12px; border: 1px solid #ddd; overflow-x: auto; }
+        :root {
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --border-strong: #d1d5db;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #16a34a;
+            --success-bg: #f0fdf4;
+            --success-border: #bbf7d0;
+            --danger: #dc2626;
+            --danger-bg: #fef2f2;
+            --danger-border: #fecaca;
+            --warning: #f59e0b;
+            --warning-bg: #fffbeb;
+            --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+            --radius: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 32px 24px;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        h2 a { color: inherit; text-decoration: none; }
+        h2 a:hover { color: var(--primary); }
+
+        h3 { font-size: 16px; font-weight: 600; margin: 0; }
+        h4 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* Messages */
+        .message {
+            margin: 0 0 24px;
+            padding: 14px 16px;
+            border-radius: var(--radius);
+            border-left: 4px solid;
+            background: var(--card);
+            box-shadow: var(--shadow);
+        }
+        .message ul { margin: 8px 0 0; padding-left: 20px; }
+        .message li { margin: 4px 0; }
+        .success { background: var(--success-bg); border-left-color: var(--success); }
+        .success h4 { color: var(--success); }
+        .error { background: var(--danger-bg); border-left-color: var(--danger); color: var(--danger); }
+        .error h4 { color: var(--danger); }
+
+        /* Form */
+        form label {
+            display: block;
+            font-weight: 500;
+            color: var(--text);
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .field { margin-bottom: 16px; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        input[type="text"], input[type="password"], textarea, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-strong);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--text);
+            background: #fff;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        textarea { font-family: var(--mono); resize: vertical; }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+        }
+
+        button {
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: background .15s, border-color .15s;
+        }
+        button[type="submit"] {
+            background: var(--primary);
+            color: #fff;
+        }
+        button[type="submit"]:hover { background: var(--primary-hover); }
+
+        .btn-danger {
+            background: #fff;
+            color: var(--danger);
+            border-color: var(--danger-border);
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+        .btn-danger:hover { background: var(--danger-bg); }
+
+        /* Compare form (inline) */
+        .compare-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 16px;
+        }
+        .compare-form .field { flex: 1 1 280px; margin: 0; }
+        .compare-form button { white-space: nowrap; }
+
+        /* Table */
+        .table-wrap {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            table-layout: auto;
+        }
+        th, td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: .5px;
+        }
+        tbody tr:hover { background: #f9fafb; }
+        tbody tr:last-child td { border-bottom: none; }
+        td a { color: var(--primary); text-decoration: none; }
+        td a:hover { text-decoration: underline; }
+        th:nth-child(1), td:nth-child(1) { width: 60px; text-align: center; color: var(--text-muted); }
+
+        /* Compare view */
+        .compare-result-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        .compare-result-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .compare-container {
+            margin: 0;
+            border: none;
+            border-radius: 0;
+            background: #fff;
+        }
+        .compare-header {
+            display: flex;
+            background: #f9fafb;
+            border-bottom: 1px solid var(--border);
+        }
+        .compare-header-cell {
+            flex: 1;
+            padding: 10px 14px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: var(--text-muted);
+            text-align: center;
+            border-right: 1px solid var(--border);
+        }
+        .compare-header-cell:last-child { border-right: none; }
+        .compare-body { display: flex; max-height: 600px; }
+        .compare-column {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: auto;
+            border-right: 1px solid var(--border);
+        }
+        .compare-column:last-child { border-right: none; }
+
+        /* Scrollbar */
+        .compare-column::-webkit-scrollbar { width: 10px; height: 10px; }
+        .compare-column::-webkit-scrollbar-track { background: #f9fafb; }
+        .compare-column::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 5px; }
+        .compare-column::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+        .compare-line {
+            padding: 3px 12px;
+            font-family: var(--mono);
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.6;
+            border-left: 3px solid transparent;
+            min-height: 24px;
+        }
+        .line-equal { background: #ffffff; color: #374151; }
+        .line-delete {
+            background: #fef2f2;
+            color: #991b1b;
+            border-left-color: var(--danger);
+        }
+        .line-insert {
+            background: #f0fdf4;
+            color: #166534;
+            border-left-color: var(--success);
+        }
+        .line-replace {
+            background: #fffbeb;
+            color: #92400e;
+            border-left-color: var(--warning);
+        }
+
+        .compare-stats {
+            padding: 12px 18px;
+            background: #f9fafb;
+            border-top: 1px solid var(--border);
+            font-size: 13px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .stat-item {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #fff;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+        .stat-delete { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+        .stat-insert { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
+        .stat-replace { background: var(--warning-bg); border-color: #fde68a; color: var(--warning); }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 32px;
+            background: var(--card);
+            border: 1px dashed var(--border-strong);
+            border-radius: var(--radius);
+        }
+
+        @media (max-width: 640px) {
+            body { padding: 16px 12px; }
+            .card { padding: 16px; }
+            th, td { padding: 8px 10px; }
+        }
     </style>
 </head>
 <body>
-    <h2><a href="/" style="color:#000; text-decoration:none;">连接交换机并保存配置</a></h2>
-    {% if success %}
-        <div class="message success">
-            成功保存配置：{{ host }}<br>
-            文件名：<a href="/configs/{{ filename }}" target="_blank">{{ filename }}</a>
-        </div>
-        <h3>本次配置内容</h3>
-        <pre>{{ output }}</pre>
-    {% elif error %}
-        <div class="message error">
-            连接失败: {{ error }}
-        </div>
-    {% endif %}
+    <div class="container">
+        <h2><a href="/">连接交换机并保存配置</a></h2>
 
-    <form action="/connect" method="post">
-        <label for="host">Host:</label>
-        <input type="text" id="host" name="host" required><br><br>
-
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required><br><br>
-
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required><br><br>
-
-        <label for="ticket">Ticket No.:</label>
-        <input type="text" id="ticket" name="ticket" placeholder="可选"><br><br>
-
-        <label for="comment">Comment:</label>
-        <select id="comment" name="comment" onchange="toggleCommentText()">
-            <option value="none">none</option>
-            <option value="before change">before change</option>
-            <option value="after change">after change</option>
-            <option value="other">other</option>
-        </select><br><br>
-
-        <div id="comment_text_wrap" style="display:none;">
-            <label for="comment_text">其他备注：</label><br>
-            <textarea id="comment_text" name="comment_text" rows="3" cols="40" placeholder="请输入备注"></textarea><br><br>
-        </div>
-
-        <button type="submit">连接并保存配置</button>
-    </form>
-    <script>
-        function toggleCommentText() {
-            var commentSelect = document.getElementById('comment');
-            var wrap = document.getElementById('comment_text_wrap');
-            wrap.style.display = commentSelect.value === 'other' ? 'block' : 'none';
-        }
-        document.addEventListener('DOMContentLoaded', function() {
-            toggleCommentText();
-        });
-    </script>
-
-    <h2>保存的配置记录</h2>
-    {% if records %}
-        <form action="/compare" method="post">
-            <label for="file_a">选择配置 A：</label>
-            <select id="file_a" name="file_a" required>
-                <option value="">-- 请选择 --</option>
-                {% for record in records %}
-                    <option value="{{ record.filename }}" {% if record.filename == compare_a %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
-                {% endfor %}
-            </select>
-            <label for="file_b">选择配置 B：</label>
-            <select id="file_b" name="file_b" required>
-                <option value="">-- 请选择 --</option>
-                {% for record in records %}
-                    <option value="{{ record.filename }}" {% if record.filename == compare_b %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit">比较两个配置</button>
-        </form>
-
-        {% if compare_result %}
-            <div class="message" style="background:#f7f7f7; border:1px solid #ccc;">
-                <h3>配置比较结果</h3>
-                <pre>{{ compare_result }}</pre>
+        {% if success %}
+            <div class="message success">
+                {% if success_list %}
+                    <h4>✓ 成功保存的配置</h4>
+                    <ul>
+                    {% for item in success_list %}
+                        <li><strong>{{ item.host }}</strong> — 文件名：<a href="/configs/{{ item.filename }}" target="_blank">{{ item.filename }}</a></li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+                {% if error_list %}
+                    <h4 style="margin-top:12px; color: var(--danger);">✗ 连接失败的 host</h4>
+                    <ul>
+                    {% for item in error_list %}
+                        <li><strong>{{ item.host }}</strong> — {{ item.error }}</li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
             </div>
+        {% elif error %}
+            <div class="message error">连接失败: {{ error }}</div>
         {% endif %}
 
-        <table>
-            <thead>
-                <tr>
-                    <th>序号</th>
-                    <th>保存时间</th>
-                    <th>目标 Host</th>
-                    <th>Ticket No.</th>
-                    <th>Comment</th>
-                    <th>文件名</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in records %}
-                    <tr>
-                        <td>{{ record.seq }}</td>
-                        <td>{{ record.timestamp }}</td>
-                        <td>{{ record.host }}</td>
-                        <td>{{ record.ticket }}</td>
-                        <td>{{ record.comment }}</td>
-                        <td><a href="/configs/{{ record.filename }}" target="_blank">{{ record.filename }}</a></td>
-                        <td>
-                            <form action="/delete/{{ record.filename }}" method="post" style="display:inline;" onsubmit="return confirm('确定删除吗?');">
-                                <button type="submit" style="background:#dc3545;color:#fff;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;">删除</button>
-                            </form>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p>尚未保存任何配置。</p>
-    {% endif %}
+        <div class="card">
+            <form action="/connect" method="post" onsubmit="return handleBackupSubmit(this);">
+                <div class="field">
+                    <label for="host">Host <span style="color: var(--text-muted); font-weight: 400;">(支持多个，用逗号或换行分隔)</span></label>
+                    <textarea id="host" name="host" rows="4" placeholder="例如：192.168.1.1&#10;或 192.168.1.1, 192.168.1.2&#10;或逐行输入" required></textarea>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="field">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <div class="field">
+                        <label for="ticket">Ticket No.</label>
+                        <input type="text" id="ticket" name="ticket" placeholder="可选">
+                    </div>
+                    <div class="field">
+                        <label for="comment">Comment</label>
+                        <select id="comment" name="comment" onchange="toggleCommentText()">
+                            <option value="none">none</option>
+                            <option value="before change">before change</option>
+                            <option value="after change">after change</option>
+                            <option value="other">other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field" id="comment_text_wrap" style="display:none;">
+                    <label for="comment_text">其他备注</label>
+                    <textarea id="comment_text" name="comment_text" rows="3" placeholder="请输入备注"></textarea>
+                </div>
+
+                <button type="submit" id="backupBtn">一键备份</button>
+            </form>
+        </div>
+
+        <script>
+            function toggleCommentText() {
+                var commentSelect = document.getElementById('comment');
+                var wrap = document.getElementById('comment_text_wrap');
+                wrap.style.display = commentSelect.value === 'other' ? 'block' : 'none';
+            }
+
+            function handleBackupSubmit(form) {
+                var btn = document.getElementById('backupBtn');
+                if (btn.disabled) return false;
+                var originalText = btn.textContent;
+                btn.disabled = true;
+                btn.style.opacity = '0.6';
+                btn.style.cursor = 'not-allowed';
+                var seconds = 5;
+                btn.textContent = '备份中... (' + seconds + 's)';
+                var timer = setInterval(function () {
+                    seconds--;
+                    if (seconds > 0) {
+                        btn.textContent = '备份中... (' + seconds + 's)';
+                    } else {
+                        clearInterval(timer);
+                        btn.disabled = false;
+                        btn.style.opacity = '';
+                        btn.style.cursor = '';
+                        btn.textContent = originalText;
+                    }
+                }, 1000);
+                return true;
+            }
+            document.addEventListener('DOMContentLoaded', toggleCommentText);
+        </script>
+
+        <h2>保存的配置记录</h2>
+        {% if records %}
+            <div class="card">
+                <form action="/compare" method="post" class="compare-form">
+                    <div class="field">
+                        <label for="file_a">选择配置 A</label>
+                        <select id="file_a" name="file_a" required>
+                            <option value="">-- 请选择 --</option>
+                            {% for record in records %}
+                                <option value="{{ record.filename }}" {% if record.filename == compare_a %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="file_b">选择配置 B</label>
+                        <select id="file_b" name="file_b" required>
+                            <option value="">-- 请选择 --</option>
+                            {% for record in records %}
+                                <option value="{{ record.filename }}" {% if record.filename == compare_b %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit">比较两个配置</button>
+                </form>
+            </div>
+
+            {% if compare_result %}
+                <div class="compare-result-card">
+                    <div class="compare-result-header">
+                        <h3>配置比较结果</h3>
+                        <div id="compareStats" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+                    </div>
+                    <div id="compareContainer"></div>
+                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const diffData = {{ compare_result | safe }};
+                        const container = document.getElementById('compareContainer');
+
+                        if (!diffData || diffData.length === 0) {
+                            container.innerHTML = '<div style="padding: 24px; text-align:center; color: var(--text-muted);">两个配置文件完全相同。</div>';
+                            return;
+                        }
+
+                        let stats = { delete: 0, insert: 0, replace: 0, equal: 0 };
+                        diffData.forEach(line => { stats[line.type]++; });
+
+                        let statsHtml = '';
+                        if (stats.delete > 0) statsHtml += '<span class="stat-item stat-delete">删除 ' + stats.delete + '</span>';
+                        if (stats.insert > 0) statsHtml += '<span class="stat-item stat-insert">添加 ' + stats.insert + '</span>';
+                        if (stats.replace > 0) statsHtml += '<span class="stat-item stat-replace">修改 ' + stats.replace + '</span>';
+                        document.getElementById('compareStats').innerHTML = statsHtml;
+
+                        let html = '<div class="compare-container">';
+                        html += '<div class="compare-header">';
+                        html += '<div class="compare-header-cell">配置 A</div>';
+                        html += '<div class="compare-header-cell">配置 B</div>';
+                        html += '</div>';
+                        html += '<div class="compare-body">';
+
+                        let leftHtml = '', rightHtml = '';
+                        diffData.forEach(line => {
+                            let lineClass = 'line-' + line.type;
+                            leftHtml += line.line_a
+                                ? '<div class="compare-line ' + lineClass + '">' + escapeHtml(line.line_a) + '</div>'
+                                : '<div class="compare-line"></div>';
+                            rightHtml += line.line_b
+                                ? '<div class="compare-line ' + lineClass + '">' + escapeHtml(line.line_b) + '</div>'
+                                : '<div class="compare-line"></div>';
+                        });
+
+                        html += '<div class="compare-column">' + leftHtml + '</div>';
+                        html += '<div class="compare-column">' + rightHtml + '</div>';
+                        html += '</div>';
+                        html += '<div class="compare-stats">';
+                        html += '<span class="stat-item">总行数 ' + diffData.length + '</span>';
+                        html += statsHtml;
+                        html += '</div>';
+                        html += '</div>';
+
+                        container.innerHTML = html;
+
+                        const columns = container.querySelectorAll('.compare-column');
+                        if (columns.length === 2) {
+                            const [leftCol, rightCol] = columns;
+                            let syncing = false;
+                            leftCol.addEventListener('scroll', function() {
+                                if (syncing) return;
+                                syncing = true;
+                                rightCol.scrollTop = leftCol.scrollTop;
+                                requestAnimationFrame(() => syncing = false);
+                            });
+                            rightCol.addEventListener('scroll', function() {
+                                if (syncing) return;
+                                syncing = true;
+                                leftCol.scrollTop = rightCol.scrollTop;
+                                requestAnimationFrame(() => syncing = false);
+                            });
+                        }
+                    });
+
+                    function escapeHtml(text) {
+                        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+                        return text.replace(/[&<>"']/g, m => map[m]);
+                    }
+                </script>
+            {% endif %}
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>保存时间</th>
+                            <th>目标 Host</th>
+                            <th>Ticket No.</th>
+                            <th>Comment</th>
+                            <th>文件名</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                            <tr>
+                                <td>{{ record.seq }}</td>
+                                <td>{{ record.timestamp }}</td>
+                                <td>{{ record.host }}</td>
+                                <td>{{ record.ticket }}</td>
+                                <td>{{ record.comment }}</td>
+                                <td><a href="/configs/{{ record.filename }}" target="_blank">{{ record.filename }}</a></td>
+                                <td>
+                                    <form action="/delete/{{ record.filename }}" method="post" style="display:inline;" onsubmit="return confirm('确定删除吗?');">
+                                        <button type="submit" class="btn-danger">删除</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">尚未保存任何配置。</div>
+        {% endif %}
+    </div>
 </body>
 </html>
