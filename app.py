@@ -99,7 +99,7 @@ def get_next_sequence_number():
         name_without_ext = name[:-4]
         if "__" in name_without_ext:
             ts_and_seq = name_without_ext.split("__", 1)[0]
-            parts = ts_and_seq.split("_", 1)
+            parts = ts_and_seq.split("_")
             if len(parts) >= 1:
                 try:
                     seq = int(parts[0])
@@ -123,14 +123,26 @@ def list_saved_configs():
         timestamp_str = "unknown"
         host = "unknown"
         
-        # File format: SEQ_YYYYMMDD_HHMMSS__host.txt
+        # File format: SEQ[_TICKET]_YYYYMMDD_HHMMSS__host.txt
+        # Support both old format (SEQ_YYYYMMDD_HHMMSS__host.txt) and new format (SEQ_TICKET_YYYYMMDD_HHMMSS__host.txt)
         if "__" in name_without_ext:
             ts_and_seq, host = name_without_ext.split("__", 1)
-            parts = ts_and_seq.split("_", 1)
+            parts = ts_and_seq.split("_")
             if len(parts) >= 2:
                 try:
                     seq = int(parts[0])
-                    timestamp_str = parts[1]
+                    # Find the timestamp by looking for YYYYMMDD_HHMMSS pattern from the end
+                    # The last two parts should form the timestamp (YYYYMMDD and HHMMSS)
+                    if len(parts) >= 3:
+                        potential_ts = "_".join(parts[-2:])
+                        try:
+                            datetime.strptime(potential_ts, "%Y%m%d_%H%M%S")
+                            timestamp_str = potential_ts
+                        except ValueError:
+                            # If last two don't form a valid timestamp, fallback to original logic
+                            timestamp_str = "_".join(parts[1:])
+                    else:
+                        timestamp_str = parts[1]
                 except (ValueError, IndexError):
                     pass
         
@@ -212,7 +224,14 @@ def connect():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_host = re.sub(r"[^a-zA-Z0-9_-]", "_", host)
             seq = get_next_sequence_number()
-            filename = f"{seq}_{timestamp}__{safe_host}.txt"
+            
+            # Generate filename with optional ticket ID
+            # Format: SEQ[_TICKET]_YYYYMMDD_HHMMSS__host.txt
+            if ticket:
+                filename = f"{seq}_{ticket}_{timestamp}__{safe_host}.txt"
+            else:
+                filename = f"{seq}_{timestamp}__{safe_host}.txt"
+            
             file_path = os.path.join(CONFIG_DIR, filename)
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(output)

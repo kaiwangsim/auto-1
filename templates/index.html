@@ -312,7 +312,7 @@
 </head>
 <body>
     <div class="container">
-        <h2><a href="/">连接交换机并保存配置</a></h2>
+        <h2><a href="/">首页</a></h2>
 
         {% if success %}
             <div class="message success">
@@ -337,7 +337,7 @@
             <div class="message error">连接失败: {{ error }}</div>
         {% endif %}
 
-        <div class="card">
+        <div class="card" id="backupCard" {% if compare_result %}style="display:none;"{% endif %}>
             <form action="/connect" method="post" onsubmit="return handleBackupSubmit(this);">
                 <div class="field">
                     <label for="host">Host <span style="color: var(--text-muted); font-weight: 400;">(支持多个，用逗号或换行分隔)</span></label>
@@ -387,30 +387,16 @@
             function handleBackupSubmit(form) {
                 var btn = document.getElementById('backupBtn');
                 if (btn.disabled) return false;
-                var originalText = btn.textContent;
                 btn.disabled = true;
                 btn.style.opacity = '0.6';
                 btn.style.cursor = 'not-allowed';
-                var seconds = 5;
-                btn.textContent = '备份中... (' + seconds + 's)';
-                var timer = setInterval(function () {
-                    seconds--;
-                    if (seconds > 0) {
-                        btn.textContent = '备份中... (' + seconds + 's)';
-                    } else {
-                        clearInterval(timer);
-                        btn.disabled = false;
-                        btn.style.opacity = '';
-                        btn.style.cursor = '';
-                        btn.textContent = originalText;
-                    }
-                }, 1000);
+                btn.textContent = '备份中...';
                 return true;
             }
             document.addEventListener('DOMContentLoaded', toggleCommentText);
         </script>
 
-        <h2>保存的配置记录</h2>
+        <h2>配置对比</h2>
         {% if records %}
             <div class="card">
                 <form action="/compare" method="post" class="compare-form">
@@ -419,7 +405,7 @@
                         <select id="file_a" name="file_a" required>
                             <option value="">-- 请选择 --</option>
                             {% for record in records %}
-                                <option value="{{ record.filename }}" {% if record.filename == compare_a %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
+                                <option value="{{ record.filename }}" {% if record.filename == compare_a %}selected{% endif %}>{{ record.filename }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -428,11 +414,11 @@
                         <select id="file_b" name="file_b" required>
                             <option value="">-- 请选择 --</option>
                             {% for record in records %}
-                                <option value="{{ record.filename }}" {% if record.filename == compare_b %}selected{% endif %}>{{ record.seq }}. {{ record.timestamp }} / {{ record.host }} / {{ record.filename }}</option>
+                                <option value="{{ record.filename }}" {% if record.filename == compare_b %}selected{% endif %}>{{ record.filename }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <button type="submit">比较两个配置</button>
+                    <button type="submit">比较配置</button>
                 </form>
             </div>
 
@@ -517,7 +503,8 @@
                     }
                 </script>
             {% endif %}
-
+        <br>
+        <h2>保存的配置</h2>
             <div class="table-wrap">
                 <table>
                     <thead>
