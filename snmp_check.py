@@ -263,16 +263,18 @@ def missing_labels(result):
 
 
 def write_outputs(results, out_dir):
-    os.makedirs(out_dir, exist_ok=True)
     ts = f"{datetime.now():%Y-%m-%d %H:%M:%S}"
+    # 每次运行在 output/ 下按时间戳新建子文件夹, 本次结果放里面 (不覆盖历史)
+    run_dir = os.path.join(out_dir, datetime.now().strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(run_dir, exist_ok=True)
 
     ready = [r for r in results if r["ready"]]
     not_ready = [r for r in results if not r["ready"]]
 
-    f1 = os.path.join(out_dir, "1_ready_to_change.txt")
-    f2 = os.path.join(out_dir, "2_not_ready.txt")
-    fcsv = os.path.join(out_dir, "check_summary.csv")
-    ftxt = os.path.join(out_dir, "check_summary.txt")
+    f1 = os.path.join(run_dir, "1_ready_to_change.txt")
+    f2 = os.path.join(run_dir, "2_not_ready.txt")
+    fcsv = os.path.join(run_dir, "check_summary.csv")
+    ftxt = os.path.join(run_dir, "check_summary.txt")
 
     # ---- 1_ready_to_change.txt ----
     with open(f1, "w", encoding="utf-8") as f:
@@ -327,6 +329,22 @@ def write_outputs(results, out_dir):
                 f.write(f"    {mark}  {CHECK_LABELS[k]}\n")
             if r["error"]:
                 f.write(f"    备注: {r['error']}\n")
+            # 原始回显 (方便复核)
+            raw_user = (r.get("raw_user") or "").strip()
+            f.write("    --- show snmp user 原始回显 ---\n")
+            if raw_user:
+                for ln in raw_user.splitlines():
+                    f.write(f"      {ln}\n")
+            else:
+                f.write("      (无输出 / 未取到, 可能连接失败或该设备无 SNMPv3 用户)\n")
+
+            raw_acl = (r.get("raw_acl") or "").strip()
+            f.write(f"    --- show access-lists {ACL_NAME} 原始回显 ---\n")
+            if raw_acl:
+                for ln in raw_acl.splitlines():
+                    f.write(f"      {ln}\n")
+            else:
+                f.write("      (无输出 / 未取到, 可能连接失败或该 ACL 不存在)\n")
         f.write("\n" + "=" * 78 + "\n")
 
     return f1, f2, fcsv, ftxt, ready, not_ready
