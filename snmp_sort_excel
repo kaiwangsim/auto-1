@@ -1,0 +1,51 @@
+import pandas as pd
+import re
+
+# ========== 参数配置 ==========
+INPUT_FILE = "table_query.xlsx"    # 输入文件路径（xlsx / csv 均可，见下方读取部分）
+SHEET_NAME = 0                      # 如果是多sheet的excel，指定sheet名或索引
+OUTPUT_FILE = "filtered_grouped.xlsx"
+
+# ========== 1. 读取数据 ==========
+# 如果是 Excel 文件
+df = pd.read_excel(INPUT_FILE, sheet_name=SHEET_NAME)
+# 如果是 CSV，改用：
+# df = pd.read_csv(INPUT_FILE)
+
+# 去除列名前后空格，避免因为空格导致列名匹配失败
+df.columns = df.columns.str.strip()
+
+# ========== 2. 筛选条件 ==========
+# F列 = device_vendor == 'cisco'
+# H列 = xom_ops_gr == 'nw-ops'
+filtered = df[
+    (df["device_vendor"].astype(str).str.strip().str.lower() == "cisco")
+    & (df["xom_ops_gr"].astype(str).str.strip().str.lower() == "nw-ops")
+].copy()
+
+# ========== 3. 提取 A列 name 中的 "CNXXX" 前缀 ==========
+# 规则：取第一个 "-" 之前的部分作为分组 key
+# 例如：CNTCG-LANCD2001.exxonmobil.com.cn        -> CNTCG
+#       CNHUZDTCPR-LANCUA009.exxonmobil.com.cn   -> CNHUZDTCPR
+def extract_prefix(name):
+    if pd.isna(name):
+        return ""
+    name = str(name).strip()
+    match = re.match(r"^([A-Za-z0-9]+)-", name)
+    if match:
+        return match.group(1)
+    # 如果没有"-"，就返回整个name（去掉域名后缀）
+    return name.split(".")[0]
+
+filtered["group_key"] = filtered["name"].apply(extract_prefix)
+
+# ========== 4. 按分组key排序，使相同前缀的行排在一起 ==========
+filtered_sorted = filtered.sort_values(by=["group_key", "name"]).reset_index(drop=True)
+
+# ========== 5. 输出结果 ==========
+filtered_sorted.to_excel(OUTPUT_FILE, index=False)
+print(f"筛选并分组完成，共 {len(filtered_sorted)} 条记录，已保存到 {OUTPUT_FILE}")
+
+# 如果想直接查看分组情况，可以打印每组的数量
+print("\n各分组统计：")
+print(filtered_sorted["group_key"].value_counts())
