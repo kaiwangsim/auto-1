@@ -7,12 +7,12 @@ snmp_check.py —— SNMPv3 变更前【预检查】脚本 (按 plan.md 实现)
 ------
 在对交换机做 SNMPv3 变更之前, 批量登录设备检查基线配置是否已就位:
 
-  需要检查的 4 条 snmp-server 命令:
-    1) snmp-server group snmpv3user v3 priv
+  检查项:
+    1) SNMPv3 用户存在: show snmp user 中有 snmpv3user
+       (snmp-server user 默认不在 running-config 显示, 故用 show snmp user 判断)
     2) snmp-server group snmpv3-priv-group v3 priv read snmpv3-view access ALLOW-SNMPV3
     3) snmp-server view snmpv3-view iso included
     4) snmp-server host 10.224.188.218 version 3 priv snmpv3user
-  以及访问控制列表:
     5) 存在 access-list ALLOW-SNMPv3
     6) 该 ACL 中存在 permit 10.224.188.218
 
@@ -68,9 +68,10 @@ ACL_NAME = "ALLOW-SNMPv3"         # 注意: ACL 名大小写 (plan 里 group 引
 DEVICE_TYPE = "cisco_ios"
 DEFAULT_USERNAME = "cisco"        # password.txt 只有密码时使用
 
-# 待检查的 4 条 snmp-server 命令 (key -> 期望命令文本)
+# 通过 show run | include snmp-server 检查的命令 (这些行 running-config 里会稳定显示)
+# 注意: SNMPv3 用户 (snmp-server user ...) 默认不在 running-config 显示, 因此单独用
+#       show snmp user 检查, 不放这里。
 EXPECTED_SNMP_CMDS = {
-    "group_user": "snmp-server group snmpv3user v3 priv",
     "group_priv": "snmp-server group snmpv3-priv-group v3 priv read snmpv3-view access ALLOW-SNMPV3",
     "view":       f"snmp-server view {VIEW_NAME} iso included",
     "host_cmd":   f"snmp-server host {SERVER_IP} version 3 priv {SNMP_USER}",
@@ -78,7 +79,7 @@ EXPECTED_SNMP_CMDS = {
 
 # 检查项的中文标签 (用于输出, 顺序即报告列顺序)
 CHECK_LABELS = {
-    "group_user": "snmp group snmpv3user",
+    "snmp_user":  f"SNMP用户 {SNMP_USER} (show snmp user)",
     "group_priv": "snmp group snmpv3-priv-group(+ACL)",
     "view":       f"snmp view {VIEW_NAME}",
     "host_cmd":   f"snmp host {SERVER_IP}",
@@ -87,6 +88,7 @@ CHECK_LABELS = {
 }
 
 SHOW_SNMP_CMD = "show running-config | include snmp-server"
+SHOW_USER_CMD = "show snmp user"
 SHOW_ACL_CMD = f"show access-lists {ACL_NAME}"
 
 # 路径相对【脚本自身所在目录】解析, 这样无论从哪个工作目录运行都能找到 input/ 并写 output/
@@ -112,6 +114,12 @@ def normalize(s):
 def ip_in_line(line, ip):
     """行内是否精确包含某 IP (用数字/点边界, 避免 ...218 误匹配 ...2180)。"""
     return re.search(r"(?<![\d.])" + re.escape(ip) + r"(?![\d.])", line) is not None
+
+
+def token_in_text(text, token):
+    """文本中是否含某个独立词 (大小写不敏感, 词/连字符边界, 避免部分匹配)。"""
+    return re.search(r"(?<![\w-])" + re.escape(token) + r"(?![\w-])",
+                     text or "", re.IGNORECASE) is not None
 
 
 def read_hosts(path):
@@ -162,6 +170,7 @@ def check_device(host, username, password, secret, device_type):
         "ready": False,
         "error": "",
         "raw_snmp": "",
+        "raw_user": "",
         "raw_acl": "",
     }
 
@@ -202,14 +211,20 @@ def check_device(host, username, password, secret, device_type):
             result["hostname"] = ""
 
         snmp_out = net.send_command(SHOW_SNMP_CMD)
+        user_out = net.send_command(SHOW_USER_CMD)
         acl_out = net.send_command(SHOW_ACL_CMD)
         result["raw_snmp"] = snmp_out or ""
+        result["raw_user"] = user_out or ""
         result["raw_acl"] = acl_out or ""
 
-        if "% Invalid input" in (snmp_out or "") or "% Invalid input" in (acl_out or ""):
+        if any("% Invalid input" in (o or "") for o in (snmp_out, user_out, acl_out)):
             result["error"] = "命令报错(可能权限不足/语法不支持), 请人工确认"
 
-        # 4 条 snmp-server 命令检查 (宽松: 大小写不敏感 + 折叠空白)
+        # SNMPv3 用户: 直接看 show snmp user 里是否有该用户
+        # (snmp-server user 默认不在 running-config 显示, 抓配置判断不可靠)
+        result["checks"]["snmp_user"] = token_in_text(user_out, SNMP_USER)
+
+        # 其余 snmp-server 命令检查 (宽松: 大小写不敏感 + 折叠空白)
         norm_snmp = normalize(snmp_out)
         for key, cmd in EXPECTED_SNMP_CMDS.items():
             result["checks"][key] = normalize(cmd) in norm_snmp
