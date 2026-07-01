@@ -330,6 +330,14 @@ def write_outputs(results, out_dir):
             if r["error"]:
                 f.write(f"    备注: {r['error']}\n")
             # 原始回显 (方便复核)
+            raw_snmp = (r.get("raw_snmp") or "").strip()
+            f.write(f"    --- {SHOW_SNMP_CMD} 原始回显 ---\n")
+            if raw_snmp:
+                for ln in raw_snmp.splitlines():
+                    f.write(f"      {ln}\n")
+            else:
+                f.write("      (无输出 / 未取到, 可能连接失败或该设备无相关 snmp-server 配置)\n")
+
             raw_user = (r.get("raw_user") or "").strip()
             f.write("    --- show snmp user 原始回显 ---\n")
             if raw_user:
