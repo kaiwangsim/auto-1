@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""
+把 b.xlsx 的 M 列 (snmp_added) 按 E 列 IP 匹配,回填到 a.xlsx 的 K 列。
+规则:
+  - a 的 K 列已有内容 → 保留不动
+  - a 的 K 列为空,且 b 里能按 IP 匹配到非空 M → 写入
+用 openpyxl 原地改 a,不破坏原有格式/列宽/其他列。
+"""
+
+import ipaddress
+import openpyxl
+
+FILE_A = "a.xlsx"
+FILE_B = "b.xlsx"
+SHEET_A = 0          # 也可以写表名,如 "Sheet1"
+SHEET_B = 0
+COL_IP = "E"         # 两边都是 E 列放 IP
+COL_A_TARGET = "K"   # a 的 snmp_added
+COL_B_SOURCE = "M"   # b 的 snmp_added
+HEADER_ROW = 1       # 表头所在行,数据从下一行开始
+
+
+def norm_ip(v):
+    """归一化 IP:去空格、验证合法性。非法/空返回 None。"""
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+    try:
+        return str(ipaddress.ip_address(s))
+    except ValueError:
+        return None  # 不是合法 IP,不参与匹配
+
+
+def col_idx(letter):
+    return openpyxl.utils.column_index_from_string(letter)
+
+
+# ---- 1. 从 b 建立 IP -> snmp_added 映射 ----
+wb_b = openpyxl.load_workbook(FILE_B, read_only=True, data_only=True)
+ws_b = wb_b.worksheets[SHEET_B] if isinstance(SHEET_B, int) else wb_b[SHEET_B]
+
+ip_map = {}
+dup_ips = set()
+for row in ws_b.iter_rows(min_row=HEADER_ROW + 1, values_only=False):
+    ip = norm_ip(row[col_idx(COL_IP) - 1].value)
+    val = row[col_idx(COL_B_SOURCE) - 1].value
+    if ip is None or val is None or str(val).strip() == "":
+        continue
+    if ip in ip_map and ip_map[ip] != val:
+        dup_ips.add(ip)  # 同 IP 多个不同值,只保留第一个,记录警告
+        continue
+    ip_map.setdefault(ip, val)
+wb_b.close()
+
+print(f"从 b 读取到 {len(ip_map)} 个有效 IP -> snmp_added 映射")
+if dup_ips:
+    print(f"⚠ b 中有 {len(dup_ips)} 个 IP 重复且值不一致(保留首个): {sorted(dup_ips)[:10]}")
+
+# ---- 2. 回填 a 的 K 列 ----
+wb_a = openpyxl.load_workbook(FILE_A)  # 不用 read_only,要写回
+ws_a = wb_a.worksheets[SHEET_A] if isinstance(SHEET_A, int) else wb_a[SHEET_A]
+
+filled, skipped_existing, no_match = 0, 0, 0
+for r in range(HEADER_ROW + 1, ws_a.max_row + 1):
+    ip = norm_ip(ws_a.cell(row=r, column=col_idx(COL_IP)).value)
+    if ip is None:
+        continue
+    target = ws_a.cell(row=r, column=col_idx(COL_A_TARGET))
+    if target.value is not None and str(target.value).strip() != "":
+        skipped_existing += 1
+        continue
+    if ip in ip_map:
+        target.value = ip_map[ip]
+        filled += 1
+    else:
+        no_match += 1
+
+wb_a.save(FILE_A)
+print(f"完成: 回填 {filled} 行, 跳过已有值 {skipped_existing} 行, 未匹配 {no_match} 行")
