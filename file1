@@ -14,3 +14,7 @@ keyed_groups:
     prefix: ""          # 生成 lan / wan / wln 组
 
 
+ansible-inventory -i inventory/ --graph
+ansible-playbook -i inventory/ play.yml --limit 'site_shanghai:&lan'
+
+
