@@ -1,0 +1,3 @@
+站点:  =LOWER(MID(A2, 3, FIND("-",A2)-3))
+角色:  =LOWER(MID(A2, FIND("-",A2)+1, 3))
+输出:  =LOWER(A2)&" ansible_host="&C2&" site="&<站点列>2&" role="&<角色列>2
