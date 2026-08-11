@@ -31,6 +31,8 @@ def parse_args():
     p = argparse.ArgumentParser(description="site/role/output 表 -> Ansible INI inventory")
     p.add_argument("input", help="Excel 或 CSV 文件")
     p.add_argument("-o", "--output", default="01_network_inventory.ini")
+    p.add_argument("--ap-file", default="02_ap_hosts.ini",
+                   help="AP 单独输出到此文件 (主文件不含 AP); 设为 '' 则 AP 直接丢弃")
     p.add_argument("--sheet", default=0, help="Excel sheet 名或序号, 默认第一个")
     return p.parse_args()
 
@@ -72,6 +74,21 @@ def main():
 
     df[["_name", "_ip"]] = df[COL_OUT].apply(lambda s: pd.Series(split_out(s)))
 
+    # wln 细分: 主机名 wlnlap* -> role=ap, wlnwlc* -> role=wlc
+    def refine_role(row):
+        if row[COL_ROLE] != "wln":
+            return row[COL_ROLE]
+        seg = row["_name"].split("-", 1)[1] if "-" in row["_name"] else ""
+        if seg.startswith("wlnwlc"):
+            return "wlc"
+        if seg.startswith("wlnlap"):
+            return "ap"
+        print(f"[警告] wln 设备无法细分 (非 wlnlap/wlnwlc): {row['_name']}, 保留 role=wln",
+              file=sys.stderr)
+        return "wln"
+
+    df[COL_ROLE] = df.apply(refine_role, axis=1)
+
     no_ip = df[df["_ip"] == ""]
     if not no_ip.empty:
         print(f"[警告] {len(no_ip)} 行 output 里没有 ansible_host=, 已剔除:", file=sys.stderr)
@@ -94,7 +111,12 @@ def main():
         for _, r in dup.iterrows():
             print(f"    {r['_name']}  {r['_ip']}", file=sys.stderr)
 
+    # AP 拆分: 主 inventory 不含 AP, 另存一份
+    ap_df = df[df[COL_ROLE] == "ap"].copy()
+    df = df[df[COL_ROLE] != "ap"].copy()
+
     df = df.sort_values([COL_SITE, COL_ROLE, "_name"]).reset_index(drop=True)
+    ap_df = ap_df.sort_values([COL_SITE, "_name"]).reset_index(drop=True)
 
     # --- 生成 INI ---
     lines = [
@@ -125,8 +147,22 @@ def main():
     with open(args.output, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines).rstrip() + "\n")
 
+    if len(ap_df) and args.ap_file:
+        ap_lines = [
+            f"; AP hosts (excluded from main inventory), generated {date.today().isoformat()}",
+            "; APs are managed via WLC; this file is for reference / ad-hoc use only.",
+            "",
+            "[all]",
+        ]
+        for _, r in ap_df.iterrows():
+            ap_lines.append(f"{r['_name']} ansible_host={r['_ip']}")
+        for site, g in ap_df.groupby(COL_SITE, sort=True):
+            ap_lines += ["", f"[site_{site}_ap]"] + g["_name"].tolist()
+        with open(args.ap_file, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(ap_lines).rstrip() + "\n")
+
     print(f"完成: {args.output}")
-    print(f"  主机: {len(df)}")
+    print(f"  主机: {len(df)}  (另有 AP {len(ap_df)} 台 -> {args.ap_file if args.ap_file else '已丢弃'})")
     print(f"  站点: {df[COL_SITE].nunique()}  ({', '.join(sorted(df[COL_SITE].unique()))})")
     print(f"  角色: {df[COL_ROLE].nunique()}  ({', '.join(sorted(df[COL_ROLE].unique()))})")
     print("验证: ansible-inventory -i", args.output, "--graph")
