@@ -83,11 +83,11 @@ def main():
             return "wlc"
         if seg.startswith("wlnlap"):
             return "ap"
-        print(f"[警告] wln 设备无法细分 (非 wlnlap/wlnwlc): {row['_name']}, 保留 role=wln",
-              file=sys.stderr)
-        return "wln"
+        print(f"[提示] wln 设备非 wlnlap/wlnwlc, 已剔除: {row['_name']}", file=sys.stderr)
+        return None
 
     df[COL_ROLE] = df.apply(refine_role, axis=1)
+    df = df.dropna(subset=[COL_ROLE])
 
     no_ip = df[df["_ip"] == ""]
     if not no_ip.empty:
