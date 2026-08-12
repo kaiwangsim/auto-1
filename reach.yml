@@ -1,0 +1,27 @@
+---
+- name: Reachability check (ICMP + SSH port)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: ICMP ping
+      ansible.builtin.command: "ping -c 2 -W 2 {{ ansible_host }}"
+      delegate_to: localhost
+      register: icmp
+      failed_when: false
+      changed_when: false
+
+    - name: SSH port 22
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        timeout: 5
+      delegate_to: localhost
+      register: ssh
+      ignore_errors: true
+
+    - name: Result
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} ({{ ansible_host }}):
+          ICMP={{ 'OK' if icmp.rc == 0 else 'FAIL' }}
+          SSH={{ 'FAIL' if ssh is failed else 'OK' }}
