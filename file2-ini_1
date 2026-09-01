@@ -76,9 +76,12 @@ def main():
 
     # wln 细分: 主机名 wlnlap* -> role=ap, wlnwlc* -> role=wlc
     def refine_role(row):
+        seg = row["_name"].split("-", 1)[1] if "-" in row["_name"] else ""
+        if row[COL_ROLE] == "wan":
+            # SD-WAN (Versa VEP, wansd*) 非 IOS,拆成独立 role
+            return "sdwan" if seg.startswith("wansd") else "wan"
         if row[COL_ROLE] != "wln":
             return row[COL_ROLE]
-        seg = row["_name"].split("-", 1)[1] if "-" in row["_name"] else ""
         if seg.startswith("wlnwlc"):
             return "wlc"
         if seg.startswith("wlnlap"):
