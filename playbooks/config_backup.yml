@@ -1,0 +1,52 @@
+---
+- name: Fetch device configs
+  hosts: lan:wlc:wan
+  gather_facts: false
+  vars:
+    ansible_command_timeout: 120
+  tasks:
+    - name: Get running-config
+      cisco.ios.ios_command:
+        commands: show running-config
+      register: runcfg
+
+    - name: Save normalized config
+      ansible.builtin.copy:
+        content: "{{ (runcfg.stdout[0].splitlines()
+                      | reject('match', '^Building configuration')
+                      | reject('match', '^Current configuration')
+                      | reject('match', '^! Last configuration change')
+                      | reject('match', '^! NVRAM config last updated')
+                      | reject('match', '^ntp clock-period')
+                      | list | join('\n')) ~ '\n' }}"
+        dest: "/runner/cfg_backup/{{ inventory_hostname }}.cfg"
+        mode: "0644"
+      delegate_to: localhost
+      changed_when: false
+
+- name: Push to backup repo
+  hosts: localhost
+  gather_facts: false
+  vars:
+    repo_url: "https://x-access-token:{{ lookup('env', 'BACKUP_GIT_TOKEN') }}@github.com/EMOrg-Prd/ecn_network_configurations.git"
+  tasks:
+    - name: Clone, sync, commit, push
+      ansible.builtin.shell: |
+        set -e
+        git clone -q --depth 1 "{{ repo_url }}" /runner/repo
+        cd /runner/repo
+        rm -rf configs && mkdir configs && cp -a /runner/cfg_backup/. configs/
+        echo "last_run: $(date '+%Y-%m-%d %H:%M:%S')" > BACKUP_STATUS
+        echo "configs: $(ls configs | wc -l)" >> BACKUP_STATUS
+        git config user.name aap-backup
+        git config user.email aap-backup@noreply.local
+        git add -A
+        git commit -q -m "backup $(date '+%Y-%m-%d %H:%M') ($(ls configs | wc -l) configs)"
+        git push -q origin HEAD
+        cat BACKUP_STATUS
+      register: result
+      no_log: true
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: "{{ result.stdout_lines }}"
