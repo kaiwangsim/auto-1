@@ -5,6 +5,13 @@
   vars:
     ansible_command_timeout: 120
   tasks:
+    - name: Ensure backup dir exists
+      ansible.builtin.file:
+        path: /runner/cfg_backup
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      run_once: true
     - name: Get running-config
       cisco.ios.ios_command:
         commands: show running-config
