@@ -31,8 +31,9 @@
       delegate_to: localhost
       changed_when: false
 
+
 - name: Push to backup repo
-  hosts: localhost
+  hosts: lan:wlc:wan
   gather_facts: false
   vars:
     repo_url: "https://x-access-token:{{ backup_git_token }}@github.com/EMOrg-Prd/ecn_network_configurations.git"
@@ -53,7 +54,10 @@
         cat BACKUP_STATUS
       register: result
       no_log: true
+      run_once: true
+      delegate_to: localhost
 
     - name: Summary
       ansible.builtin.debug:
         msg: "{{ result.stdout_lines }}"
+      run_once: true
