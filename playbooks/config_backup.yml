@@ -28,7 +28,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    repo_url: "https://x-access-token:{{ lookup('env', 'BACKUP_GIT_TOKEN') }}@github.com/EMOrg-Prd/ecn_network_configurations.git"
+    repo_url: "https://x-access-token:{{ backup_git_token }}@github.com/EMOrg-Prd/ecn_network_configurations.git"
   tasks:
     - name: Clone, sync, commit, push
       ansible.builtin.shell: |
